@@ -1,0 +1,181 @@
+# FoodConnect – Context Handover
+
+Read this first if you are picking up the project: a teammate, a future you, or an AI assistant in a new session. It covers what exists, what has been verified, the design decisions and why they were made, the gotchas, and what is left.
+
+*Last updated: 15 Oct 2026, end of the initial build.*
+
+---
+
+## 1. One-paragraph summary
+
+FoodConnect is an end-semester project by a team of three beginner students. It is a web platform where **food donors** list surplus food and **NGOs** collect it. **Admins** verify NGOs and moderate the platform. The core features are:
+- an **explainable weighted matching score** (0–100) that ranks verified NGOs for each donation;
+- **time-based food-safety checks** that block expired or impossible donations;
+- a **validated status lifecycle** with history and notifications;
+- **analytics** computed from the database.
+
+The stack is React + Vite + Tailwind in `frontend/`, Flask + SQLAlchemy + JWT in `backend/`, and SQLite. Everything is built, runs locally, and the full demo workflow has been verified.
+
+## 2. Current status
+
+| Area | Status |
+|---|---|
+| Backend API (auth, donations, matching, requests, lifecycle, notifications, admin, analytics) | ✅ Done |
+| Frontend (6 public pages, donor pages, NGO pages, 7 admin pages, shared pages) | ✅ Done, connected to the real API |
+| Seed data (`backend/seed.py`) | ✅ Done; resets the DB on every run |
+| Automated tests | ✅ 54 passing (`python -m pytest -q` in `backend`) |
+| Live end-to-end check (16-step workflow incl. duplicate claim, expiry, 403s) | ✅ Passed against the running servers |
+| Production frontend build (`npx vite build`) | ✅ Builds without errors |
+| README + `docs/` (7 explanation docs + this handover) | ✅ Done |
+| Git | ❌ Not a git repo yet; nothing committed. `.gitignore` is ready. |
+| Deployment | ❌ Not done; local only, by design |
+| Visual QA with real mouse clicks | ⚠️ Only partial. The UI was driven by scripts and one screenshot. Click through it manually once. |
+
+## 3. How to run (this laptop – already installed)
+
+Terminal 1:
+```
+cd "C:\Users\mailn\OneDrive\Documents\College_2\7th sem\food\backend"
+venv\Scripts\activate
+python seed.py        # optional: resets demo data with fresh times
+python run.py         # http://127.0.0.1:5000/api
+```
+Terminal 2:
+```
+cd "C:\Users\mailn\OneDrive\Documents\College_2\7th sem\food\frontend"
+npm run dev           # http://localhost:5173
+```
+On a new machine, first-time setup is in README §12–15:
+- backend: create a venv, `pip install -r requirements.txt`, `copy .env.example .env`;
+- frontend: `npm install`.
+
+**Demo logins** (local only; passwords come from `backend/.env`):
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@foodconnect.demo` | `DemoAdmin@2026` |
+| Donors | `restaurant@` / `hotel@` / `canteen@` / `bakery@` / `priya@foodconnect.demo` | `DemoUser@2026` |
+| NGOs (verified) | `helpinghands@` / `annadhanam@` / `greenplate@` / `annanagar@foodconnect.demo` | `DemoUser@2026` |
+| NGO (pending verification) | `littlelights@foodconnect.demo` | `DemoUser@2026` |
+
+## 4. Where things live
+
+```
+backend/
+  run.py, config.py, seed.py, requirements.txt, .env(.example)
+  instance/foodconnect.db        ← SQLite file (gitignored)
+  app/__init__.py                ← create_app(): blueprints, JSON error handlers, JWT callbacks
+  app/models/                    ← User, NGOProfile, Donation, CollectionRequest,
+                                   DonationStatusHistory, Notification, AuditLog,
+                                   misc.py (DonationReport, ContactMessage, TokenBlocklist)
+  app/routes/                    ← auth, profile (+NGO profile/dashboard), donation,
+                                   request, notification, admin, analytics (+public, health)
+  app/services/
+    matching.py                  ← ★ scoring + exclusions + ranking
+    food_safety.py               ← ★ blocking errors, warnings, checklist, disclaimer
+    lifecycle.py                 ← ★ ALLOWED_TRANSITIONS, change_status, lazy expiry
+    collection_service.py        ← ★ requests/offers + ATOMIC accept
+    analytics.py                 ← dashboard formulas
+    notification_service.py      ← notify_user, notify_admins, record_audit
+  app/utils/                     ← auth_required decorator, validators, ApiError/responses,
+                                   constants (all allowed values + status names), time_utils
+  tests/                         ← conftest.py + 4 test files (54 tests)
+frontend/src/
+  App.jsx                        ← all routes + role guards
+  context/AuthContext.jsx        ← login state (JWT in localStorage)
+  services/api.js                ← Axios instance, token interceptor, error helpers
+  services/*Service.js           ← one function per endpoint
+  hooks/useApi.js                ← loading/error + polling (pollMs)
+  layouts/                       ← PublicLayout, DashboardLayout (role sidebar, bell polling)
+  components/                    ← ui.jsx primitives, StatusBadge, DonationCard, MatchCard,
+                                   DonationTimeline, SafetyChecklist, ConfirmDialog, Charts
+  pages/public|donor|ngo|admin|shared
+  utils/                         ← constants (labels; must match backend), format, validation
+docs/                            ← explanations, demo script, viva Q&A, team division, this file
+.claude/launch.json              ← lets the Claude desktop app start both servers
+```
+
+## 5. Key design decisions (and why)
+
+1. **Rule-based "AI" matching, not an LLM or ML model.** It is free, offline, deterministic and explainable for a viva. `calculate_match_score()` returns a fixed dict shape, so it is the plug-in point for a future model.
+2. **Two-stage matching.** Hard filters exclude NGOs first (unverified, suspended, diet rule, storage, packaging, capacity, deadline, location); only then are NGOs scored. A score can never override safety.
+3. **Weights:** location 30, capacity 20, category 15, dietary 15, deadline 20.
+   - Location: exact area/PIN = 30; same first 3 PIN digits = 15; otherwise excluded.
+   - The original idea of a "first 4 digits" tier was dropped: every Chennai PIN is `6000xx`, so that tier would have matched almost everything.
+4. **Area-based location, labelled as such.** There is no geocoding and no GPS, and the app says so everywhere.
+5. **Atomic claim.** Accepting a request runs `UPDATE donations … WHERE status='REQUESTED' AND assigned_ngo_id IS NULL` and checks `rowcount`. There is also a `UNIQUE(donation_id, ngo_id)` constraint on requests.
+6. **Two request directions** (`initiated_by`): an NGO requests and the donor decides, or the donor offers and the NGO decides. Whoever did *not* create the request is the one who accepts or rejects it.
+7. **Lazy expiry instead of a scheduler.** List and detail endpoints call `expire_overdue_donations()` first.
+   - AVAILABLE/REQUESTED expire when the pickup deadline passes.
+   - ACCEPTED/PICKUP_SCHEDULED expire when the use-by time passes.
+8. **Polling instead of WebSockets.** Details pages refresh every 15 s, lists every 20–30 s, and the bell every 20 s.
+9. **Auth.** JWT identity = user id as a string. `auth_required()` **reloads the user from the DB** on every call, so role and suspension status always come from the DB. Logout adds the token's `jti` to `TokenBlocklist`. Admins cannot self-register; they are created only by the seed script.
+10. **Privacy.** NGOs see only the area and PIN until accepted; the address and phone go only to the owner, the assigned NGO and admins (`to_dict(include_private=…)`).
+11. **Time.** The DB stores naive UTC. The API emits ISO strings ending in `Z`. The frontend converts `datetime-local` input values to UTC with `inputToIso()`.
+12. **Consistent JSON.** Responses are `{success, message, data}` or `{success:false, error:{code,message,details}}`. Routes raise `ApiError`.
+13. **Lists stored as CSV text** (service areas, PINs, preferred categories). This is a deliberate beginner-friendly simplification.
+14. **Secrets only in `.env`.** `create_app()` refuses to start without `SECRET_KEY`/`JWT_SECRET_KEY`. `seed.py` exits if the demo-password env vars are missing and refuses to run when `APP_ENV=production`.
+
+## 6. Gotchas (things that will bite you)
+
+- **Re-run `python seed.py` before every demo or rehearsal.** Seed times are relative to "now", so the open donations expire within hours. Seeding **wipes all data**, including anything created by hand.
+- **One login per browser profile.** The token is in `localStorage`, so tabs share it. To demo several roles at once, use different browsers or incognito sessions (a normal window and an incognito window of the same browser count as two).
+- **Ports 5000/5173.** If the Claude desktop app's preview servers are still running, starting them manually fails with "port in use".
+- **Backend and frontend constants must match.** If you add a category or status, update both `backend/app/utils/constants.py` and `frontend/src/utils/constants.js`.
+- **`db.create_all()` does not alter existing tables.** After changing a model, run `python seed.py` (it drops and recreates everything), or add Flask-Migrate.
+- **Flask's `jsonify` sorts dict keys.** Don't rely on key order from the API; the landing page orders the weights itself for this reason.
+- **The global `Exception` handler hides tracebacks from the client.** Look at the backend terminal for the real error.
+- **The PowerShell venv activation policy** may block `venv\Scripts\activate`; use cmd, or run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once.
+
+## 7. Known limitations (documented in README §22)
+
+- Area-based matching rather than distance.
+- Rule-based scoring rather than ML.
+- Polling rather than push updates.
+- In-app notifications only.
+- No GPS.
+- Opening hours are stored but not used in scoring.
+- Expiry is checked only when pages load.
+- Food is not weighed, so the kg and CO₂ figures are illustrative estimates.
+- The JWT is kept in localStorage.
+- SQLite with no migrations.
+- No image upload.
+- An NGO cannot back out once its request is accepted.
+
+## 8. Suggested next steps (pick by priority)
+
+1. **Click through every page manually** and fix any visual or UX issue. Use `docs/DEMO_SCRIPT.md` as the checklist.
+2. **Put it under version control:**
+   ```
+   git init
+   git add .
+   git commit -m "FoodConnect initial build"
+   ```
+   `.gitignore` already excludes venv, node_modules, `.env` and the DB.
+3. **Rehearse the demo** using the three-window version (Donor A, NGO B, Admin D) and assign the parts per `docs/TEAM_DIVISION.md`.
+4. **Optional enhancements** that are good for viva talking points:
+   - use opening hours in the deadline score;
+   - add an "NGO releases collection" flow;
+   - email notifications;
+   - a background expiry job (APScheduler).
+
+## 9. Verification commands
+
+```
+cd backend && venv\Scripts\activate && python -m pytest -q        # expect: 54 passed
+cd frontend && npx vite build                                       # expect: built without errors
+curl http://127.0.0.1:5000/api/health                               # expect: {"success": true, ...}
+```
+
+## 10. Further reading
+
+| Need | File |
+|---|---|
+| Setup, API table, formulas, errors | `README.md` |
+| How the whole app fits together | `docs/PROJECT_EXPLANATION.md` |
+| Tables, relationships, atomic claim | `docs/DATABASE_EXPLANATION.md` |
+| Every endpoint with examples | `docs/API_EXPLANATION.md` |
+| Scoring + worked examples | `docs/MATCHING_ALGORITHM.md` |
+| Click-by-click demo | `docs/DEMO_SCRIPT.md` |
+| Viva Q&A | `docs/VIVA_QUESTIONS.md` |
+| Who presents what | `docs/TEAM_DIVISION.md` |

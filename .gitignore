@@ -1,0 +1,23 @@
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Secrets and local database (never commit these)
+backend/.env
+frontend/.env
+backend/instance/*.db
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local Claude app settings
+.claude/

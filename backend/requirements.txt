@@ -1,0 +1,8 @@
+# FoodConnect backend dependencies (install with: pip install -r requirements.txt)
+Flask==3.0.3
+Flask-Cors==5.0.0
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.36
+Flask-JWT-Extended==4.6.0
+python-dotenv==1.0.1
+pytest==8.3.3
