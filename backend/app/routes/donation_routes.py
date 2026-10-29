@@ -32,6 +32,7 @@ from ..services.lifecycle import (
     reject_pending_requests,
     safety_warnings_to_json,
 )
+from ..services import geo
 from ..services.matching import get_available_capacity, rank_donations_for_ngo, rank_ngos_for_donation
 from ..services.notification_service import notify_admins, notify_user
 from ..utils.auth_helpers import auth_required, current_ngo_profile, current_user
@@ -96,7 +97,12 @@ def parse_donation_form(data):
         "pickup_postal_code": read_string(data, "pickup_postal_code", errors, required=True, max_length=10),
         "notes": read_string(data, "notes", errors, max_length=2000),
         "safety_declaration": read_bool(data, "safety_declaration"),
+        # Optional map pin (both or neither)
+        "pickup_latitude": read_float(data, "pickup_latitude", errors, minimum=-90, maximum=90),
+        "pickup_longitude": read_float(data, "pickup_longitude", errors, minimum=-180, maximum=180),
     }
+    if (fields["pickup_latitude"] is None) != (fields["pickup_longitude"] is None) and "pickup_latitude" not in errors:
+        errors["pickup_latitude"] = "Provide both latitude and longitude, or neither."
     raise_if_errors(errors)
     return fields
 
@@ -385,6 +391,70 @@ def recommended_for_ngo():
     return success_response({"items": ranked[:20], "available_capacity": get_available_capacity(ngo)})
 
 
+def urgency_level(donation, now):
+    """high = pickup deadline within 2 h, medium = within 6 h, low = later."""
+    hours_left = (donation.pickup_deadline - now).total_seconds() / 3600
+    if hours_left <= 2:
+        return "high"
+    if hours_left <= 6:
+        return "medium"
+    return "low"
+
+
+@donation_bp.get("/map")
+@auth_required("ngo", "admin")
+def donations_map():
+    """
+    Markers for the "Donations map" page.
+      NGO:   open donations (approximate position) + its own active collections (exact).
+      Admin: ?scope=open (default) or ?scope=active (every unfinished donation), exact positions.
+    """
+    expire_overdue_donations()
+    user = current_user()
+    now = utc_now()
+    ngo = user_ngo_profile(user)
+
+    if user.role == "admin":
+        statuses = IN_PROGRESS | OPEN_FOR_REQUESTS if request.args.get("scope") == "active" else OPEN_FOR_REQUESTS
+        donations = Donation.query.filter(Donation.status.in_(statuses)).all()
+    else:
+        donations = Donation.query.filter(
+            or_(Donation.status.in_(OPEN_FOR_REQUESTS),
+                (Donation.assigned_ngo_id == ngo.id) & Donation.status.in_(IN_PROGRESS))
+        ).all()
+
+    markers, unmapped = [], 0
+    for donation in donations:
+        is_mine = ngo is not None and donation.assigned_ngo_id == ngo.id
+        location = geo.donation_location(donation, exact_allowed=user.role == "admin" or is_mine)
+        if location is None:
+            unmapped += 1
+            continue
+        markers.append({
+            "donation_id": donation.id,
+            "food_name": donation.food_name,
+            "servings": donation.servings,
+            "category": donation.category,
+            "dietary_type": donation.dietary_type,
+            "status": donation.status,
+            "pickup_area": donation.pickup_area,
+            "pickup_deadline": to_iso(donation.pickup_deadline),
+            "urgency": urgency_level(donation, now),
+            "is_mine": is_mine,
+            **location,
+        })
+    markers.sort(key=lambda m: m["pickup_deadline"])
+
+    return success_response({
+        "center": geo.DEFAULT_CENTER,
+        "ngo_base": geo.ngo_base_location(ngo) if ngo else None,
+        "markers": markers,
+        "unmapped_count": unmapped,
+        "approximate_radius_m": geo.APPROXIMATE_RADIUS_METERS,
+        "note": "Approximate markers show the pickup area, not the exact address. Exact pins are shared after acceptance.",
+    })
+
+
 @donation_bp.get("/collections")
 @auth_required("ngo")
 def list_ngo_collections():
@@ -469,6 +539,7 @@ def get_donation_details(donation_id):
         "safety_disclaimer": DISCLAIMER,
         "normal_flow": NORMAL_FLOW,
         "allowed_actions": allowed_actions_for(user, donation),
+        "map_location": geo.donation_location(donation, exact_allowed=can_view_private_details(user, donation)),
         "tracking_note": "Status tracking only - FoodConnect does not use live GPS location.",
         "server_time": to_iso(utc_now()),
     })

@@ -45,7 +45,12 @@ Window A → **Donate food**.
 ### 4. NGO requests the donation (Member 2, ~1 min)
 Window B (Helping Hands) → **Recommended for you** → the new pulao donation is at the top with its score → **Request** → add a message → Send.
 - Optional: second NGO window (Anna Nagar) → **Available donations** → filter Area "Adyar" → **Request** the same donation.
-- Point out: NGOs only see area and PIN — the exact address is shown after acceptance.
+- Point out: NGOs only see area and PIN — the exact address (and exact map pin) is shown after acceptance.
+
+### 4b. Donations map (Member 1 or 2, ~30 s)
+Window B → **Donations map**: coloured markers by urgency (red < 2 h, amber < 6 h, green later), your NGO base, list sorted by deadline. Click a list item → the map flies there; click a marker → popup with *View details*.
+- "Other NGOs only see the **approximate area** (faint circle). The exact pin appears only after the donor accepts — same privacy rule as the address."
+- "It's OpenStreetMap via Leaflet: free, no API key. It shows where food is waiting, not GPS tracking."
 
 ### 5. Donor accepts (Member 2, ~1 min)
 Window A → bell shows a new notification → **NGO requests** → *Requests from NGOs* → **Accept** Helping Hands.
@@ -74,7 +79,7 @@ Window C:
 ```bash
 python -m pytest -q
 ```
-→ `54 passed`. Mention test names: `test_two_ngos_cannot_both_claim_the_same_donation`, `test_api_rejects_expired_donation`, `test_full_lifecycle_and_invalid_jumps`.
+→ `63 passed`. Mention test names: `test_two_ngos_cannot_both_claim_the_same_donation`, `test_api_rejects_expired_donation`, `test_full_lifecycle_and_invalid_jumps`.
 
 ### 10. Close (All, ~1 min)
 - Limitations: area-based not GPS; rule-based scoring; polling; app cannot certify food safety; estimates labelled.

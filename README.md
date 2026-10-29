@@ -43,7 +43,7 @@ More detailed, beginner-friendly explanations are in the [`docs/`](docs) folder:
 | Role | What they can do |
 |---|---|
 | **Food donor** | Register, list surplus food, see the safety checklist, see ranked NGO recommendations with score breakdowns, offer food to an NGO or accept NGO requests, track the donation, cancel it, view history and impact. |
-| **NGO** | Register (starts *pending*), maintain service areas/capacity/preferences, see recommended donations, browse and filter all open donations, request donations or accept donor offers, update pickup → collected → delivered, view servings received and distributed. |
+| **NGO** | Register (starts *pending*), maintain service areas/capacity/preferences, see recommended donations, browse and filter all open donations, request donations or accept donor offers, see open donations on a **map**, update pickup → collected → delivered, view servings received and distributed. |
 | **Administrator** | Verify or reject NGOs, suspend/reactivate accounts, inspect all donations and requests, remove unsafe donations, resolve reports, read contact messages, view analytics and the audit log. |
 
 ## 2. Problem statement
@@ -92,11 +92,12 @@ A web platform where:
 | FR10 | NGO verification, user suspension, moderation, reports, audit log | `backend/app/routes/admin_routes.py` |
 | FR11 | Analytics from database records | `backend/app/services/analytics.py` |
 | FR12 | Responsive React UI for all three roles | `frontend/src/pages/**` |
+| FR13 | Donations map (NGO + admin) with privacy-safe approximate locations | `backend/app/services/geo.py`, `frontend/src/components/maps/` |
 
 ## 7. Non-functional requirements
 
 - **Security:** hashed passwords (Werkzeug), signed JWTs, logout token blocklist, role + ownership checks on the server, no secrets in code (`.env`), exact addresses hidden from NGOs until accepted.
-- **Reliability:** backend validation on every input, consistent JSON errors, transactions for multi-row changes, atomic claim, 54 automated tests.
+- **Reliability:** backend validation on every input, consistent JSON errors, transactions for multi-row changes, atomic claim, 63 automated tests.
 - **Usability:** clean green/white design, loading states, empty states, confirmation dialogs, accessible labels, keyboard support (Escape closes dialogs), mobile layout.
 - **Maintainability:** small modules with one job each, beginner-friendly names and comments, SQLAlchemy models portable to PostgreSQL.
 - **Performance:** indexes on status/deadline/foreign keys, paginated lists, polling every 15–30 s instead of constant requests.
@@ -133,6 +134,7 @@ flowchart LR
 | HTTP | **Axios** | Interceptors add the token and handle expired sessions in one place. |
 | Charts | **Recharts** | Simple React chart components for monthly trends and categories. |
 | Icons | **Lucide React** | Clean, consistent open-source icons. |
+| Maps | **Leaflet + React-Leaflet + OpenStreetMap** | Free, open-source interactive maps; no API key or payment needed. |
 | API | **Flask 3** + Blueprints | Minimal, readable Python web framework; one file per feature area. |
 | ORM | **Flask-SQLAlchemy / SQLAlchemy 2** | Python classes instead of raw SQL; switch to PostgreSQL by changing `DATABASE_URL`. |
 | Auth | **Flask-JWT-Extended** + Werkzeug hashing | Standard token login; never store plain passwords. |
@@ -196,8 +198,10 @@ FoodConnect (this folder)
 │   │   │   ├── lifecycle.py          ★ status transitions (Member 3)
 │   │   │   ├── analytics.py          ★ dashboard numbers (Member 3)
 │   │   │   ├── collection_service.py requests + atomic claim (Member 2)
-│   │   │   └── notification_service.py notifications + audit (Member 2)
-│   │   └── utils/                validators, responses, auth decorator, constants, time
+│   │   │   ├── notification_service.py notifications + audit (Member 2)
+│   │   │   └── geo.py                map locations + approximate-area privacy
+│   │   └── utils/                validators, responses, auth decorator, constants, time,
+│   │                             db_upgrade.py (adds new columns to old databases)
 │   └── tests/                    pytest tests
 ├── frontend/                     ← Member 1
 │   ├── package.json, vite.config.js, tailwind.config.js, .env.example
@@ -208,6 +212,7 @@ FoodConnect (this folder)
 │       ├── hooks/                useAuth, useApi (loading + polling), useToast
 │       ├── layouts/              PublicLayout, DashboardLayout (sidebar)
 │       ├── components/           reusable UI (cards, badges, timeline, match card...)
+│       │   └── maps/             DonationMap (Leaflet map) + LocationPicker (pin drop)
 │       ├── pages/public|donor|ngo|admin|shared
 │       └── utils/                labels, date formatting, form validation
 └── docs/                         explanations, demo script, viva questions, team division
@@ -324,6 +329,7 @@ Auth column: **Public**, **Any** (logged in), or the required role. Send the tok
 | GET | `/api/donations/available` | NGO | Open donations with filters |
 | GET | `/api/donations/recommended` | NGO | Open donations ranked for this NGO |
 | GET | `/api/donations/collections` | NGO | Assigned donations (`scope=active|completed`) |
+| GET | `/api/donations/map` | NGO, Admin | Map markers (NGO: open donations at approximate area + own collections exact; admin: `scope=open|active`, exact) |
 | POST | `/api/donations/<id>/requests` | NGO (verified) | Request a donation |
 | POST | `/api/donations/<id>/status` | NGO (assigned) | PICKUP_SCHEDULED / COLLECTED / DELIVERED |
 | GET | `/api/donations/<id>` | Any (with access) | Details, history, requests, checklist, allowed actions |
@@ -443,6 +449,16 @@ File: `backend/app/services/food_safety.py`. Runs on create and edit (and live i
 
 The details page shows a **food safety checklist** (preparation time, use-by, storage, packaging, pickup deadline, dietary/allergens) and the disclaimer: *FoodConnect does not certify food safety; the donor is responsible for accurate information and for complying with local food-safety regulations.* Matching runs only on donations that passed these checks, and NGOs that cannot store the food correctly are excluded, so a score can never override safety.
 
+### 20b. Donations map
+
+- **Pages:** NGO → *Donations map* (`/ngo/map`), Admin → *Donations map* (`/admin/map`), plus a small map on every donation details page. Donors can optionally **drop a pin** for the exact pickup point in the donation form (or use the browser's current location).
+- **Marker colours:** red = pickup within 2 h, amber = within 6 h, green = later, blue = your NGO's own collection, white ring = your NGO base (centre of its first service area).
+- **Where positions come from** (`backend/app/services/geo.py`): the donor's pin if given; otherwise the centre of the pickup area / PIN code from a built-in table of Chennai areas. Donations in unknown areas without a pin are counted as "not mapped".
+- **Privacy:** only the donor, the assigned NGO and admins get the **exact** pin. Other NGOs get an **approximate** marker (area centre, nudged a few hundred metres so markers don't overlap) drawn with a faint circle — the same rule as for the street address.
+- **No GPS claims:** the map shows where food is waiting, not where a vehicle is. Matching is still area-based and does not use the coordinates (possible future enhancement).
+- **Internet needed for the map background:** tiles come from openstreetmap.org (© OpenStreetMap contributors). Markers and lists still work offline.
+- **Existing databases** get the two new columns (`pickup_latitude`, `pickup_longitude`) automatically at start-up (`app/utils/db_upgrade.py`). Run `python seed.py` to give all demo donations map pins.
+
 ## 21. Testing instructions
 
 ```bash
@@ -450,7 +466,7 @@ cd backend
 venv\Scripts\activate
 python -m pytest -v
 ```
-54 tests, in-memory database (your demo data is untouched):
+63 tests, in-memory database (your demo data is untouched):
 
 | File | Covers |
 |---|---|
@@ -458,6 +474,7 @@ python -m pytest -v
 | `tests/test_food_safety.py` | expired, deadline after expiry, too-soon deadline, future preparation, declaration, warnings, API returns 422 |
 | `tests/test_auth.py` | register/login, hashing, duplicates, no admin self-registration, weak password, logout revocation, role blocking, suspension |
 | `tests/test_donations.py` | creation persists, ownership from token, validation, matches API, requests, duplicate requests, unverified NGO, **two NGOs cannot both claim**, simulated race, offers, reopening, transitions, full lifecycle, auto-expiry, analytics |
+| `tests/test_map.py` | area/PIN lookup, deterministic spreading, pin saved, invalid/half pins rejected, NGOs see approximate until accepted then exact, owner/admin see exact, unmapped count, donors blocked from map API, old database gets new columns |
 
 Manual end-to-end check: follow [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
 
@@ -487,6 +504,8 @@ Manual end-to-end check: follow [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md).
 | `RuntimeError: SECRET_KEY / JWT_SECRET_KEY are missing` | `copy .env.example .env` inside `backend`. |
 | `ModuleNotFoundError: No module named 'flask'` | Activate the venv (`venv\Scripts\activate`) then `pip install -r requirements.txt`. |
 | Frontend shows "Cannot reach the FoodConnect server" | Start the backend (`python run.py`) — it must run on port 5000. |
+| Map background is grey / empty | The map tiles need internet. Markers still show; connect to the internet and refresh. |
+| Map shows few or no demo donations | Old seed data has expired — run `python seed.py` again (this also adds map pins). |
 | `Port 5000/5173 is already in use` | Close the other terminal running it, or restart the computer. |
 | Login says "Incorrect email or password" for demo users | Run `python seed.py` again; check the passwords in `backend/.env`. |
 | "Your session has expired" | Log in again (tokens last 8 hours, `JWT_EXPIRES_HOURS`). |

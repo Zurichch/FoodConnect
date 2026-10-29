@@ -12,6 +12,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import ConfirmDialog from '../../components/ConfirmDialog'
 import DonationTimeline from '../../components/DonationTimeline'
+import DonationMap from '../../components/maps/DonationMap'
 import SafetyChecklist from '../../components/SafetyChecklist'
 import StatusBadge from '../../components/StatusBadge'
 import { Alert, PageLoader, Toast } from '../../components/ui'
@@ -196,6 +197,16 @@ export default function DonationDetailsPage() {
             {!donation.pickup_address && <p className="mt-2 text-xs text-gray-400">The exact address and phone number are shown to the NGO after the donor accepts its request.</p>}
             {donation.donor_phone && <p className="mt-2 flex items-center gap-2 text-sm text-gray-700"><Phone className="h-4 w-4 text-brand-600" /> Donor: {donation.donor_phone}</p>}
             {donation.assigned_ngo_phone && <p className="mt-2 flex items-center gap-2 text-sm text-gray-700"><Phone className="h-4 w-4 text-brand-600" /> NGO: {donation.assigned_ngo_phone}</p>}
+            {data.map_location && (
+              <div className="mt-4">
+                <DonationMap height={200} showPopups={false}
+                  markers={[{ ...data.map_location, donation_id: donation.id, urgency: 'low' }]} />
+                <p className="mt-1 text-xs text-gray-400">
+                  {data.map_location.precision === 'exact' ? 'Exact pickup point.' : 'Approximate area only - exact point shared after acceptance.'}
+                  {' '}© OpenStreetMap contributors
+                </p>
+              </div>
+            )}
           </section>
           <section className="card">
             <h2 className="mb-3 font-semibold">Food safety checklist</h2>

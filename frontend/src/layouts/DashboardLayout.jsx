@@ -5,7 +5,7 @@
  */
 import {
   BarChart3, Bell, BadgeCheck, ClipboardList, FileWarning, Gauge, HandHeart, History, Inbox, LogOut,
-  Menu, PackageCheck, PlusCircle, ScrollText, Sparkles, Truck, User, Users, X,
+  Map as MapIcon, Menu, PackageCheck, PlusCircle, ScrollText, Sparkles, Truck, User, Users, X,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -27,6 +27,7 @@ const NAV_BY_ROLE = {
     { to: '/ngo', label: 'Dashboard', icon: Gauge, end: true },
     { to: '/ngo/recommended', label: 'Recommended for you', icon: Sparkles },
     { to: '/ngo/available', label: 'Available donations', icon: HandHeart },
+    { to: '/ngo/map', label: 'Donations map', icon: MapIcon },
     { to: '/ngo/requests', label: 'Requests & offers', icon: Inbox },
     { to: '/ngo/active', label: 'Active collections', icon: Truck },
     { to: '/ngo/completed', label: 'Completed collections', icon: PackageCheck },
@@ -38,6 +39,7 @@ const NAV_BY_ROLE = {
     { to: '/admin/users', label: 'User management', icon: Users },
     { to: '/admin/ngos', label: 'NGO verification', icon: BadgeCheck },
     { to: '/admin/donations', label: 'Donations', icon: ClipboardList },
+    { to: '/admin/map', label: 'Donations map', icon: MapIcon },
     { to: '/admin/reports', label: 'Reports & moderation', icon: FileWarning },
     { to: '/admin/analytics', label: 'Platform analytics', icon: BarChart3 },
     { to: '/admin/audit-log', label: 'Audit log', icon: ScrollText },

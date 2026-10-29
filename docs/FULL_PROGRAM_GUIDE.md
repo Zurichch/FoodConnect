@@ -61,7 +61,7 @@ python run.py           (API at http://127.0.0.1:5000/api)
 cd "C:\Users\mailn\OneDrive\Documents\College_2\7th sem\food\frontend"
 npm run dev             (open http://localhost:5173)
 ```
-**Tests:** in `backend`, with the venv active, run `python -m pytest -q`. Expected result: **54 passed**.
+**Tests:** in `backend`, with the venv active, run `python -m pytest -q`. Expected result: **63 passed**.
 
 ### B2. On a new laptop (first time)
 1. Install Python 3.11+ (tick "Add to PATH") and Node.js 18+.
@@ -126,6 +126,7 @@ npm run dev             (open http://localhost:5173)
 | Axios | interceptors add the token and handle expiry in one place |
 | Recharts | simple charts for the dashboards |
 | Lucide React | clean icons |
+| Leaflet + React-Leaflet + OpenStreetMap | free interactive maps; no API key |
 | Flask 3 + Blueprints | small, readable Python web framework; one file per feature |
 | Flask-SQLAlchemy | Python classes instead of SQL; can switch to PostgreSQL via `DATABASE_URL` |
 | Flask-JWT-Extended | standard token login |
@@ -152,7 +153,7 @@ npm run dev             (open http://localhost:5173)
 | **Models** (`app/models/`) | |
 | `user.py` | `User`: accounts, password hashing (`set_password`/`check_password`), `to_dict()` without the hash. |
 | `ngo_profile.py` | `NGOProfile`: organisation, service areas, capacity, preferences, storage abilities, verification. |
-| `donation.py` | `Donation`: food details, times, location, status, assigned NGO, safety warnings; `to_dict(include_private)`. |
+| `donation.py` | `Donation`: food details, times, location (incl. optional map pin `pickup_latitude/longitude`), status, assigned NGO, safety warnings; `to_dict(include_private)`. |
 | `collection_request.py` | `CollectionRequest`: a donation ↔ NGO link (`initiated_by` ngo/donor, status). |
 | `status_history.py` | `DonationStatusHistory`: one row per status change. |
 | `notification.py` | `Notification`: in-app messages. |
@@ -174,18 +175,21 @@ npm run dev             (open http://localhost:5173)
 | `collection_service.py` | ★ requests/offers and the **atomic accept** |
 | `analytics.py` | dashboard formulas |
 | `notification_service.py` | `notify_user`, `notify_admins`, `record_audit` |
+| `geo.py` | map positions: area/PIN centre table, `donation_location()` (exact vs approximate), `ngo_base_location()` |
 | **Utils** (`app/utils/`) | |
 | `auth_helpers.py` | the `auth_required(*roles)` decorator; `current_user()`; `current_ngo_profile()` |
 | `validators.py` | `read_string`, `read_int`, `read_choice`, `read_datetime`, `read_list_as_csv`, email/password checks, `raise_if_errors`, pagination parameters |
 | `responses.py` | `ApiError`, `success_response`, `error_response`, `paginate_query` |
 | `constants.py` | every allowed value: roles, categories, diets, storage types, units, statuses |
 | `time_utils.py` | `utc_now`, `parse_datetime`, `to_iso`, `hours_between` |
+| `db_upgrade.py` | `add_missing_columns()`: adds new columns (map pin) to an older database file at start-up |
 | **Tests** (`tests/`) | |
 | `conftest.py` | fresh in-memory app per test, plus helper functions |
 | `test_matching.py` | 13 tests |
 | `test_food_safety.py` | 9 tests |
 | `test_auth.py` | 13 tests |
 | `test_donations.py` | 19 tests |
+| `test_map.py` | 9 tests |
 
 ### D2. Frontend (`frontend/`)
 | File | Purpose |
@@ -214,12 +218,14 @@ npm run dev             (open http://localhost:5173)
 | `ConfirmDialog.jsx` | "are you sure?" pop-up with optional text, date and number inputs |
 | `ProtectedRoute.jsx` | redirects users who are not logged in or have the wrong role |
 | `Charts.jsx` | monthly trend chart and category chart |
+| `maps/DonationMap.jsx` | Leaflet map with coloured donation markers, popups, legend |
+| `maps/LocationPicker.jsx` | donor drops an optional exact pickup pin (click or current location) |
 | `Logo.jsx` | brand mark |
 | **utils/** `constants.js` | labels and colours for statuses, categories etc. (must match the backend) |
 | `format.js` | date formatting, relative time, local ↔ UTC conversion |
 | `validation.js` | quick browser-side form checks |
 
-### D3. Pages (30 page files)
+### D3. Pages (31 page files)
 | Area | Page file | URL | What it shows / does |
 |---|---|---|---|
 | Public | LandingPage | `/` | hero, **live DB statistics**, 3 steps, benefits, matching weights, lifecycle |
@@ -240,6 +246,7 @@ npm run dev             (open http://localhost:5173)
 | | NgoRequestsPage | `/ngo/requests` | donor offers; requests sent |
 | | CollectionsPage | `/ngo/active`, `/ngo/completed` | assigned donations |
 | | NgoProfilePage | `/ngo/profile` | areas, capacity, preferences, storage |
+| NGO + Admin | DonationsMapPage (shared) | `/ngo/map`, `/admin/map` | map of donations + list sorted by deadline |
 | Admin | AdminDashboard | `/admin` | overview, alerts, recent activity |
 | | UserManagementPage | `/admin/users` | search, suspend, reactivate |
 | | NgoVerificationPage | `/admin/ngos` | verify or reject NGOs |
@@ -261,7 +268,7 @@ npm run dev             (open http://localhost:5173)
 |---|---|---|
 | `users` (User) | every account | id, name, **email UNIQUE**, **password_hash**, role (CHECK donor/ngo/admin), phone, area, postal_code, donor_type, is_suspended |
 | `ngo_profiles` (NGOProfile) | organisation details | **user_id UNIQUE FK**, organization_name, service_areas, postal_codes, max_capacity_servings, pickup_lead_time_minutes, preferred_categories, dietary_preference, can_store_refrigerated/frozen, accepts_unpackaged, verification_status |
-| `donations` (Donation) | food listings | donor_id FK, food_name, category, quantity + unit, **servings (CHECK > 0)**, dietary_type, is_packaged, storage_type, allergens, prepared_at, expires_at, pickup_deadline, pickup_address/area/postal_code, **status**, assigned_ngo_id FK, safety_warnings, timestamps |
+| `donations` (Donation) | food listings | donor_id FK, food_name, category, quantity + unit, **servings (CHECK > 0)**, pickup_latitude/longitude (optional pin), dietary_type, is_packaged, storage_type, allergens, prepared_at, expires_at, pickup_deadline, pickup_address/area/postal_code, **status**, assigned_ngo_id FK, safety_warnings, timestamps |
 | `collection_requests` (CollectionRequest) | donation ↔ NGO | donation_id FK, ngo_id FK, **initiated_by**, status, message, match_score; **UNIQUE(donation_id, ngo_id)** |
 | `donation_status_history` | every status change | donation_id, old_status, new_status, changed_by_id, note, created_at |
 | `notifications` | in-app messages | user_id, title, message, type, donation_id, is_read |
@@ -326,6 +333,19 @@ users ─┬─1:1─ ngo_profiles ─1:N─┐
 8. **Privacy:** NGOs see only the area and PIN until the donor accepts them. The exact address and phone are visible only to the owner, the assigned NGO and admins.
 9. **Secrets:** kept in `.env`, never in code. The app refuses to start without them.
 10. **CORS:** only `localhost:5173` / `127.0.0.1:5173` may call the API from a browser.
+
+---
+
+## PART F2 — DONATIONS MAP (`services/geo.py`, `components/maps/`)
+
+- **Where:** NGO *Donations map* (`/ngo/map`), Admin *Donations map* (`/admin/map`), a small map on each donation details page, and a pin picker in the donation form.
+- **API:** `GET /api/donations/map`. NGO: open donations + its own active collections. Admin: `scope=open` or `scope=active`.
+- **Position of a donation:** the donor's optional pin, otherwise the centre of the pickup area / PIN code from a built-in Chennai table. If neither is known, it is counted as "not mapped".
+- **Privacy:** exact pin only for the donor, the assigned NGO and admins. Other NGOs get the area centre, nudged a few hundred metres per donation so markers don't overlap, and drawn with a faint 800 m circle.
+- **Colours:** red = pickup within 2 h, amber = within 6 h, green = later, blue = your collection, white ring = NGO base.
+- **Tech:** Leaflet + React-Leaflet with free OpenStreetMap tiles (needs internet; no API key).
+- **Not GPS:** it shows where food is waiting, not a vehicle's live position. Matching is still area-based.
+- **Database:** two new optional columns on `donations`; `db_upgrade.add_missing_columns()` adds them to older database files automatically.
 
 ---
 
@@ -532,7 +552,7 @@ The same functions serve the donor dashboard (filtered by donor), the NGO dashbo
 
 ---
 
-## PART M — ALL 53 API ENDPOINTS
+## PART M — ALL 54 API ENDPOINTS
 
 **Response format:**
 - Success: `{"success": true, "message": "...", "data": {...}}`
@@ -595,8 +615,9 @@ The same functions serve the donor dashboard (filtered by donor), the NGO dashbo
 | 51 | POST | /api/admin/reports/<id>/resolve | Admin | resolve/dismiss (+ optional removal) |
 | 52 | GET | /api/admin/contact-messages | Admin | contact messages |
 | 53 | GET | /api/admin/audit-logs | Admin | audit trail |
+| 54 | GET | /api/donations/map | NGO, Admin | donations map markers (approximate for other NGOs) |
 
-**Per blueprint:** admin 14 · donations 12 · requests 7 · profile 6 · analytics 6 · auth 4 · notifications 4 = **53** (50 unique URLs).
+**Per blueprint:** admin 14 · donations 13 · requests 7 · profile 6 · analytics 6 · auth 4 · notifications 4 = **54** (51 unique URLs).
 
 **Example: create a donation**
 ```
@@ -666,7 +687,7 @@ Also verified: an expired donation is rejected (422), and a second NGO cannot cl
 
 ## PART O — TESTING
 
-**Command:** in `backend`, with the venv active, run `python -m pytest -q` → **54 passed**. The tests use a temporary in-memory database, so demo data is untouched.
+**Command:** in `backend`, with the venv active, run `python -m pytest -q` → **63 passed**. The tests use a temporary in-memory database, so demo data is untouched.
 
 | File | Tests | What they prove |
 |---|---|---|
@@ -674,6 +695,7 @@ Also verified: an expired donation is rejected (422), and a second NGO cannot cl
 | test_food_safety.py | 9 | valid passes; expired blocked; deadline after expiry blocked; deadline too soon; future preparation; missing declaration; holding-time warning; urgent warning; API returns 422 for expired |
 | test_auth.py | 13 | register + login; password hashed; duplicate email; no admin self-registration; weak password / bad email; wrong password; NGO starts pending; token required; logout revokes token; donor blocked from admin APIs; role separation; admin access; suspension blocks immediately + audit |
 | test_donations.py | 19 | creation persisted with history; donor_id taken from token; missing / invalid fields; cannot cancel others' donations; matches API scores; request → REQUESTED + notifications; duplicate request; unverified NGO blocked; **two NGOs cannot both claim**; simulated race blocked by the atomic update; accepted donation hidden from others; NGO cannot accept its own request; donor offer → NGO accepts; rejection reopens the donation; transition table; full lifecycle + invalid jumps + wrong NGO/donor blocked; auto-expiry; analytics reflect the DB |
+| test_map.py | 9 | area/PIN lookup; deterministic marker spreading; pin saved; invalid or half pins rejected; other NGOs see approximate until accepted, then exact; owner/admin see exact; unknown area counted as unmapped; donors blocked from map API; old database gets new columns |
 
 ---
 
@@ -734,8 +756,8 @@ Also verified: an expired donation is rejected (422), and a second NGO cannot cl
 | Time | Who | Steps |
 |---|---|---|
 | 0:00–3:30 | Member 1 | Landing page and live stats → architecture diagram → A: Donate food (Vegetable pulao, 40 servings, Adyar 600020) → show an expired use-by error → publish → recommendations, score breakdown, excluded Green Plate (unpackaged) |
-| 3:30–6:30 | Member 2 | B: Recommended for you → Request → A: bell → NGO requests → Accept (explain the atomic update + duplicate-claim test) → B: Active collections → Schedule pickup → Collected → Delivered (38) → explain JWT/roles |
-| 6:30–9:30 | Member 3 | A: donation details → timeline (15 s polling, not GPS) + safety checklist → explain the two-stage matching + worked example (63) → lifecycle rules → dashboards updated (formulas) → `python -m pytest -q` (54 passed) |
+| 3:30–6:30 | Member 2 | B: Donations map (approximate markers, colour = urgency) → Recommended for you → Request → A: bell → NGO requests → Accept (explain the atomic update + duplicate-claim test) → B: Active collections → Schedule pickup → Collected → Delivered (38) → explain JWT/roles |
+| 6:30–9:30 | Member 3 | A: donation details → timeline (15 s polling, not GPS) + safety checklist → explain the two-stage matching + worked example (63) → lifecycle rules → dashboards updated (formulas) → `python -m pytest -q` (63 passed) |
 | 9:30–11:00 | Member 2/3 | D: dashboard alerts → verify Little Lights → resolve the milk report → open the donation history → audit log; "non-admins get 403" |
 | 11:00–12:00 | All | limitations, future work, questions |
 
@@ -753,9 +775,10 @@ Also verified: an expired donation is rejected (422), and a second NGO cannot cl
 - **Expired food?** Blocked with 422 before saving; matching never sees it.
 - **Real-time?** Polling every 15 s: status tracking, not GPS.
 - **Analytics real?** Counts come from the DB; kg and CO₂ are labelled estimates.
-- **How many APIs?** 53 endpoints in 7 blueprints.
+- **How many APIs?** 54 endpoints in 7 blueprints.
+- **Map?** Leaflet + free OpenStreetMap; exact pin only for donor/assigned NGO/admin, others see the approximate area.
 - **How many tables?** 10.
-- **How many tests?** 54, all passing.
+- **How many tests?** 63, all passing.
 - **Scaling?** PostgreSQL via `DATABASE_URL`, migrations, background jobs, WebSockets.
 - **Biggest challenge?** Making sure two NGOs can't claim the same food, and that the score never overrides safety.
 

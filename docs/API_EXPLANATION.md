@@ -64,7 +64,7 @@ NGO registration adds `organization_name`, `service_areas` (list or comma text),
 
 ### Donations (donor)
 - **POST `/api/donations/safety-check`** – same fields as create; returns `{ errors, warnings, is_publishable, disclaimer }` without saving.
-- **POST `/api/donations`** – create (example in README §17). Expired example:
+- **POST `/api/donations`** – create (example in README §17). Optional `pickup_latitude` + `pickup_longitude` (both or neither) store an exact map pin. Expired example:
   ```json
   422 { "success": false, "error": { "code": "SAFETY_CHECK_FAILED",
         "message": "This donation failed the food safety checks and cannot be published.",
@@ -89,6 +89,15 @@ NGO registration adds `organization_name`, `service_areas` (list or comma text),
 - **GET `/api/donations/available`** – filters: `area`, `my_area=true`, `category`, `dietary_type`, `storage_type`, `min_servings`, `max_servings`, `deadline_within_hours`, `sort=deadline|newest|servings`, `page`. Each item has `already_requested`. Exact address is not included.
 - **GET `/api/donations/recommended`** – `{ items: [{ donation, score, components, explanation }], available_capacity }`; empty with a message if the NGO is not verified.
 - **GET `/api/donations/collections?scope=active|completed`** – donations assigned to this NGO (with address and donor phone).
+- **GET `/api/donations/map`** (NGO or admin) – map markers. NGO: open donations at an **approximate** position (area centre) plus its own active collections at the exact pin. Admin: `?scope=open` (default) or `?scope=active`, exact pins.
+  ```json
+  { "center": {"lat": 13.05, "lng": 80.24}, "ngo_base": {"lat": 13.0012, "lng": 80.2565, "label": "Adyar"},
+    "markers": [ {"donation_id": 15, "food_name": "Idli, vada and coconut chutney", "servings": 30, "status": "AVAILABLE",
+                  "pickup_area": "Adyar", "pickup_deadline": "2026-10-29T14:30:00Z", "urgency": "medium",
+                  "is_mine": false, "lat": 13.0021, "lng": 80.2549, "precision": "approximate"} ],
+    "unmapped_count": 0, "approximate_radius_m": 800 }
+  ```
+  `urgency`: high = pickup within 2 h, medium = within 6 h, low = later. Donors get 403.
 - **POST `/api/donations/<id>/requests`** – `{ "message": "optional" }` → `201`. Errors: not verified `403`, duplicate `409`, closed donation `409`, capacity/storage/diet rule `422`.
 - **POST `/api/donations/<id>/status`** – assigned NGO only:
   ```json

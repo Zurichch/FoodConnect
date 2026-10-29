@@ -34,9 +34,11 @@ Extra organisation details for NGO users.
 
 ### `donations` – `Donation` (`models/donation.py`)
 One surplus-food listing.
-`id, donor_id (FK → users), food_name, category, description, quantity, quantity_unit, servings, dietary_type, is_packaged, storage_type, allergens, prepared_at, expires_at, pickup_deadline, pickup_address, pickup_area, pickup_postal_code, notes, status, assigned_ngo_id (FK → ngo_profiles), safety_warnings (JSON text), safety_declaration, cancel_reason, scheduled_pickup_at, accepted_at, collected_at, delivered_at, servings_distributed, created_at, updated_at`
+`id, donor_id (FK → users), food_name, category, description, quantity, quantity_unit, servings, dietary_type, is_packaged, storage_type, allergens, prepared_at, expires_at, pickup_deadline, pickup_address, pickup_area, pickup_postal_code, pickup_latitude, pickup_longitude, notes, status, assigned_ngo_id (FK → ngo_profiles), safety_warnings (JSON text), safety_declaration, cancel_reason, scheduled_pickup_at, accepted_at, collected_at, delivered_at, servings_distributed, created_at, updated_at`
 - **Quantity vs servings:** "12 kg" (how much) and "40 servings" (how many people) mean different things, so both are stored.
 - Constraints: `CHECK servings > 0`, `CHECK quantity > 0`. Indexes: `donor_id`, `status`, `category`, `assigned_ngo_id`, `created_at`, and a combined `(status, pickup_deadline)` index used by the expiry check and the NGO list.
+
+- `pickup_latitude` / `pickup_longitude`: optional exact map pin chosen by the donor (both empty if no pin). They were added after the first version, so `app/utils/db_upgrade.py` adds them to older database files automatically at start-up (`ALTER TABLE donations ADD COLUMN ...`). `db.create_all()` alone never changes an existing table.
 
 ### `collection_requests` – `CollectionRequest`
 Connects one donation to one NGO.

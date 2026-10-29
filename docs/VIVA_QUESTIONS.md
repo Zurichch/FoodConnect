@@ -95,12 +95,16 @@ It costs money, needs keys and internet, gives non-deterministic answers that ar
 
 **39. How are notifications generated?** Only by backend events (`notify_user` in services) inside the same transaction as the change; the frontend just reads them.
 
+**39b. How does the donations map work? Is it GPS?** Leaflet draws free OpenStreetMap tiles. A donation's position is the donor's optional pin, or the centre of its area/PIN from a built-in table. Other NGOs see only the approximate area; the exact pin is shared with the assigned NGO after acceptance. It shows where food is waiting, not a live vehicle position.
+
+**39c. You added columns later — how did old databases cope?** `db_upgrade.add_missing_columns()` checks the `donations` table at start-up and runs `ALTER TABLE ... ADD COLUMN` for missing columns, because `create_all()` never changes existing tables. A larger project would use Flask-Migrate.
+
 ## G. Analytics & testing
 
 **40. How is the completion rate calculated?** Delivered ÷ (delivered + cancelled + expired + rejected) × 100; in-progress donations are excluded.
 
 **41. Are the CO₂ numbers real?** No — illustrative estimates (0.4 kg per serving, 2.5 kg CO₂e per kg) and labelled as such. Counts are real database values.
 
-**42. What tests did you write?** 54 pytest tests: matching, food safety, auth, authorization, donation creation/validation, duplicate claims, transitions, expiry, analytics. They use an in-memory database.
+**42. What tests did you write?** 63 pytest tests: matching, food safety, auth, authorization, donation creation/validation, duplicate claims, map privacy, transitions, expiry, analytics. They use an in-memory database.
 
 **43. What would you improve with more time?** Distance-based matching, opening-hour checks, ML ranking, WebSockets, SMS/email, image uploads, PostgreSQL + migrations, httpOnly cookie auth, deployment.

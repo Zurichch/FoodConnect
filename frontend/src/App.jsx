@@ -19,6 +19,7 @@ import NotFoundPage from './pages/public/NotFoundPage'
 import RegisterPage from './pages/public/RegisterPage'
 // Shared (all logged-in users)
 import DonationDetailsPage from './pages/shared/DonationDetailsPage'
+import DonationsMapPage from './pages/shared/DonationsMapPage'
 import NotificationsPage from './pages/shared/NotificationsPage'
 import ProfilePage from './pages/shared/ProfilePage'
 // Donor
@@ -82,6 +83,7 @@ export default function App() {
           <Route path="/ngo" element={<NgoDashboard />} />
           <Route path="/ngo/recommended" element={<RecommendedDonationsPage />} />
           <Route path="/ngo/available" element={<AvailableDonationsPage />} />
+          <Route path="/ngo/map" element={<DonationsMapPage />} />
           <Route path="/ngo/requests" element={<NgoRequestsPage />} />
           <Route path="/ngo/active" element={<CollectionsPage scope="active" />} />
           <Route path="/ngo/completed" element={<CollectionsPage scope="completed" />} />
@@ -95,6 +97,7 @@ export default function App() {
           <Route path="/admin/users" element={<UserManagementPage />} />
           <Route path="/admin/ngos" element={<NgoVerificationPage />} />
           <Route path="/admin/donations" element={<DonationManagementPage />} />
+          <Route path="/admin/map" element={<DonationsMapPage />} />
           <Route path="/admin/reports" element={<ReportsPage />} />
           <Route path="/admin/analytics" element={<PlatformAnalyticsPage />} />
           <Route path="/admin/audit-log" element={<AuditLogPage />} />

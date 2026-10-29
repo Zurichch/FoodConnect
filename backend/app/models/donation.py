@@ -48,6 +48,10 @@ class Donation(db.Model):
     pickup_address = db.Column(db.String(255), nullable=False)
     pickup_area = db.Column(db.String(100), nullable=False)
     pickup_postal_code = db.Column(db.String(10), nullable=False)
+    # Optional exact map pin chosen by the donor. Only the donor, the assigned NGO
+    # and admins see it; other NGOs get an approximate location (see services/geo.py).
+    pickup_latitude = db.Column(db.Float)
+    pickup_longitude = db.Column(db.Float)
     notes = db.Column(db.Text)
 
     # ---- Tracking ----
@@ -127,6 +131,8 @@ class Donation(db.Model):
         }
         if include_private:
             data["pickup_address"] = self.pickup_address
+            data["pickup_latitude"] = self.pickup_latitude
+            data["pickup_longitude"] = self.pickup_longitude
             data["donor_phone"] = self.donor.phone if self.donor else None
             data["donor_email"] = self.donor.email if self.donor else None
             if self.assigned_ngo:

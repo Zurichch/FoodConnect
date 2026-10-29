@@ -17,6 +17,8 @@ export const getCollections = (params) => unwrap(api.get('/donations/collections
 export const requestDonation = (id, message) => unwrapWithMessage(api.post(`/donations/${id}/requests`, { message }))
 export const updateStatus = (id, body) => unwrapWithMessage(api.post(`/donations/${id}/status`, body))
 
+export const getDonationsMap = (params) => unwrap(api.get('/donations/map', { params }))
+
 // Shared
 export const getDonation = (id) => unwrap(api.get(`/donations/${id}`))
 export const reportDonation = (id, reason) => unwrapWithMessage(api.post(`/donations/${id}/report`, { reason }))

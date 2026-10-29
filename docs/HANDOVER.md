@@ -2,7 +2,7 @@
 
 Read this first if you are picking up the project: a teammate, a future you, or an AI assistant in a new session. It covers what exists, what has been verified, the design decisions and why they were made, the gotchas, and what is left.
 
-*Last updated: 15 Oct 2026, end of the initial build.*
+*Last updated: 29 Oct 2026, after adding the donations map.*
 
 ---
 
@@ -23,11 +23,12 @@ The stack is React + Vite + Tailwind in `frontend/`, Flask + SQLAlchemy + JWT in
 | Backend API (auth, donations, matching, requests, lifecycle, notifications, admin, analytics) | ✅ Done |
 | Frontend (6 public pages, donor pages, NGO pages, 7 admin pages, shared pages) | ✅ Done, connected to the real API |
 | Seed data (`backend/seed.py`) | ✅ Done; resets the DB on every run |
-| Automated tests | ✅ 54 passing (`python -m pytest -q` in `backend`) |
+| Automated tests | ✅ 63 passing (`python -m pytest -q` in `backend`) |
 | Live end-to-end check (16-step workflow incl. duplicate claim, expiry, 403s) | ✅ Passed against the running servers |
 | Production frontend build (`npx vite build`) | ✅ Builds without errors |
 | README + `docs/` (7 explanation docs + this handover) | ✅ Done |
-| Git | ❌ Not a git repo yet; nothing committed. `.gitignore` is ready. |
+| Donations map (NGO + admin pages, details-page map, donor pin picker) | ✅ Done; approximate markers for other NGOs; OpenStreetMap tiles need internet |
+| Git / GitHub | ✅ Public repo: https://github.com/Zurichch/FoodConnect (`.env`, database, venv and node_modules are ignored) |
 | Deployment | ❌ Not done; local only, by design |
 | Visual QA with real mouse clicks | ⚠️ Only partial. The UI was driven by scripts and one screenshot. Click through it manually once. |
 
@@ -79,7 +80,7 @@ backend/
     notification_service.py      ← notify_user, notify_admins, record_audit
   app/utils/                     ← auth_required decorator, validators, ApiError/responses,
                                    constants (all allowed values + status names), time_utils
-  tests/                         ← conftest.py + 4 test files (54 tests)
+  tests/                         ← conftest.py + 5 test files (63 tests)
 frontend/src/
   App.jsx                        ← all routes + role guards
   context/AuthContext.jsx        ← login state (JWT in localStorage)
@@ -145,11 +146,11 @@ docs/                            ← explanations, demo script, viva Q&A, team d
 ## 8. Suggested next steps (pick by priority)
 
 1. **Click through every page manually** and fix any visual or UX issue. Use `docs/DEMO_SCRIPT.md` as the checklist.
-2. **Put it under version control:**
+2. **Push future changes to GitHub** (repo: https://github.com/Zurichch/FoodConnect):
    ```
-   git init
-   git add .
-   git commit -m "FoodConnect initial build"
+   git add -A
+   git commit -m "Describe your change"
+   git push
    ```
    `.gitignore` already excludes venv, node_modules, `.env` and the DB.
 3. **Rehearse the demo** using the three-window version (Donor A, NGO B, Admin D) and assign the parts per `docs/TEAM_DIVISION.md`.
@@ -162,7 +163,7 @@ docs/                            ← explanations, demo script, viva Q&A, team d
 ## 9. Verification commands
 
 ```
-cd backend && venv\Scripts\activate && python -m pytest -q        # expect: 54 passed
+cd backend && venv\Scripts\activate && python -m pytest -q        # expect: 63 passed
 cd frontend && npx vite build                                       # expect: built without errors
 curl http://127.0.0.1:5000/api/health                               # expect: {"success": true, ...}
 ```

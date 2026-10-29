@@ -4,10 +4,12 @@
  * While the donor types, the times are sent to POST /api/donations/safety-check
  * so the safety panel updates live. The real check happens again when saving.
  * After saving, the donor is taken straight to the NGO recommendations.
+ * The optional map pin (LocationPicker) is sent as pickup_latitude / pickup_longitude.
  */
 import { AlertTriangle, CheckCircle2, Save, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import LocationPicker from '../../components/maps/LocationPicker'
 import { Alert, FormField, PageHeader, PageLoader, Spinner } from '../../components/ui'
 import useAuth from '../../hooks/useAuth'
 import { getErrorMessage, getFieldErrors } from '../../services/api'
@@ -23,6 +25,7 @@ function emptyForm(user) {
     prepared_at: hoursFromNow(-1), expires_at: hoursFromNow(5), pickup_deadline: hoursFromNow(4),
     pickup_address: user.address || '', pickup_area: user.area || '', pickup_postal_code: user.postal_code || '',
     notes: '', safety_declaration: false,
+    pickup_latitude: '', pickup_longitude: '', // optional map pin
   }
 }
 
@@ -33,6 +36,9 @@ function toPayload(form) {
     prepared_at: inputToIso(form.prepared_at),
     expires_at: inputToIso(form.expires_at),
     pickup_deadline: inputToIso(form.pickup_deadline),
+    // No pin -> send null so the backend stores nothing.
+    pickup_latitude: form.pickup_latitude === '' ? null : Number(form.pickup_latitude),
+    pickup_longitude: form.pickup_longitude === '' ? null : Number(form.pickup_longitude),
   }
 }
 
@@ -58,6 +64,7 @@ export default function CreateDonationPage() {
           ...emptyForm(user), ...donation,
           description: donation.description || '', allergens: donation.allergens || '', notes: donation.notes || '',
           prepared_at: local(donation.prepared_at), expires_at: local(donation.expires_at), pickup_deadline: local(donation.pickup_deadline),
+          pickup_latitude: donation.pickup_latitude ?? '', pickup_longitude: donation.pickup_longitude ?? '',
           safety_declaration: false,
         })
       })
@@ -157,6 +164,14 @@ export default function CreateDonationPage() {
               <FormField id="pickup_area" label="Area / locality" hint="Used for area-based matching" error={errors.pickup_area} required><input {...bind('pickup_area')} /></FormField>
               <FormField id="pickup_postal_code" label="Postal (PIN) code" error={errors.pickup_postal_code} required><input inputMode="numeric" {...bind('pickup_postal_code')} /></FormField>
               <div className="sm:col-span-2"><FormField id="notes" label="Notes for the NGO" error={errors.notes}><textarea rows={2} placeholder="e.g. Use the back gate, bring containers" {...bind('notes')} /></FormField></div>
+              <div className="sm:col-span-2">
+                <p className="label">Pickup point on the map (optional)</p>
+                <LocationPicker
+                  value={{ lat: form.pickup_latitude, lng: form.pickup_longitude }}
+                  onChange={({ lat, lng }) => setForm((previous) => ({ ...previous, pickup_latitude: lat, pickup_longitude: lng }))}
+                />
+                {errors.pickup_latitude && <p className="field-error">{errors.pickup_latitude}</p>}
+              </div>
             </div>
           </section>
         </div>

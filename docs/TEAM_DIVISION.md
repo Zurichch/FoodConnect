@@ -31,6 +31,7 @@ React structure, routing, landing/public pages, login/registration, donor & NGO 
 | `src/pages/donor/MatchRecommendationsPage.jsx`, `components/MatchCard.jsx` | Shows backend scores |
 | `src/pages/shared/DonationDetailsPage.jsx`, `components/DonationTimeline.jsx` | Tracking page |
 | `src/pages/ngo/AvailableDonationsPage.jsx` | Filters → query parameters |
+| `src/pages/shared/DonationsMapPage.jsx`, `components/maps/DonationMap.jsx`, `LocationPicker.jsx` | Donations map (Leaflet + OpenStreetMap) and the donor's pin picker |
 | `src/components/Charts.jsx` | Recharts dashboards |
 | `src/utils/validation.js`, `format.js`, `constants.js` | Form checks, dates, labels |
 
@@ -99,7 +100,7 @@ Explainable matching and ranking, food expiry/safety validation, lifecycle rules
 | `backend/app/services/food_safety.py` | Blocking errors, warnings, checklist, disclaimer |
 | `backend/app/services/lifecycle.py` | `ALLOWED_TRANSITIONS`, `change_status`, lazy expiry |
 | `backend/app/services/analytics.py` | Summary formulas, monthly trends, categories, NGO activity, estimates |
-| `backend/tests/test_matching.py`, `test_food_safety.py`, `test_donations.py`, `test_auth.py` | 54 tests |
+| `backend/tests/test_matching.py`, `test_food_safety.py`, `test_donations.py`, `test_auth.py`, `test_map.py` | 63 tests |
 | `docs/MATCHING_ALGORITHM.md` | Worked examples |
 
 ### Functions/concepts to understand
@@ -115,7 +116,7 @@ Open a recommendation's score breakdown and calculate it by hand → show an exc
 > Food safety runs before matching. Expired food, a pickup deadline after the use-by time, or a deadline less than 30 minutes away are blocked with a 422 error — here is the rejection. Softer risks become warnings shown to NGOs, and we show a disclaimer because we cannot certify food.
 > The lifecycle is one table of allowed transitions. Skipping from accepted to delivered returns 409. Overdue donations are expired automatically whenever lists are loaded. The timeline polls every 15 seconds — status tracking, not GPS.
 > Analytics are computed from the database: servings recovered are collected plus delivered servings; completion rate is delivered divided by closed donations. The kilogram and CO₂ values are clearly labelled estimates.
-> Finally, the tests: 54 pass, including 'two NGOs cannot both claim the same donation' and 'expired donation rejected'."
+> Finally, the tests: 63 pass, including 'two NGOs cannot both claim the same donation' and 'expired donation rejected'."
 
 ---
 

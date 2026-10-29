@@ -7,7 +7,7 @@ create_app() builds the Flask app step by step:
   3. allow the React frontend to call the API (CORS)
   4. register the route modules ("blueprints")
   5. register error handlers so every error is returned as JSON
-  6. create the database tables if they do not exist yet
+  6. create the database tables if they do not exist yet (and add any new columns)
 """
 import os
 
@@ -44,6 +44,11 @@ def create_app(config_class=Config):
         from . import models  # noqa: F401  (makes sure every model is known before create_all)
 
         db.create_all()
+        # Older database files may be missing columns added later (e.g. map coordinates).
+        from .utils.db_upgrade import add_missing_columns
+
+        for column in add_missing_columns(db):
+            app.logger.info("Database upgraded: added column %s", column)
 
     return app
 

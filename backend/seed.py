@@ -92,13 +92,26 @@ NOTIFICATION_TEXT = {
 }
 
 
+# Exact demo map pins (latitude, longitude) for each donor's pickup address in Chennai.
+DONOR_MAP_PINS = {
+    "restaurant@foodconnect.demo": (13.0063, 80.2574),  # LB Road, Adyar
+    "hotel@foodconnect.demo": (13.0405, 80.2337),       # Usman Road, T. Nagar
+    "canteen@foodconnect.demo": (12.9791, 80.2209),     # 100 Feet Road, Velachery
+    "bakery@foodconnect.demo": (13.0862, 80.2090),      # 2nd Avenue, Anna Nagar
+    "priya@foodconnect.demo": (13.0339, 80.2697),       # Kutchery Road, Mylapore
+}
+
+
 def create_donation(donor, created_ago, final_status, ngo=None, request_by="ngo", outcome_note=None, **fields):
     """
     Build a donation plus its status history, collection request and notifications.
     created_ago: how long ago the donation was created (timedelta).
     """
     created_at = NOW - created_ago
-    donation = Donation(donor=donor, created_at=created_at, updated_at=created_at, safety_declaration=True, **fields)
+    # Every demo donor has a map pin at their own address (used by the Donations map).
+    latitude, longitude = DONOR_MAP_PINS[donor.email]
+    donation = Donation(donor=donor, created_at=created_at, updated_at=created_at, safety_declaration=True,
+                        pickup_latitude=latitude, pickup_longitude=longitude, **fields)
     # Run the real safety checker (as if "now" were the creation time) to store warnings.
     safety = check_food_safety(fields | {"safety_declaration": True}, created_at)
     donation.safety_warnings = safety_warnings_to_json(safety["warnings"])
